@@ -37,30 +37,37 @@ export async function clearStoredTokens() {
 // --------------------
 // Auth
 // --------------------
-export async function login({ email, password }) {
+export const login = async ({ email, password }) => {
   try {
-    console.log('📤 Logging in to:', `${BASE_URL}/auth/login/`);
-    const response = await authlessApi.post('/auth/login/', { email, password });
-    const data = response.data;
+    const response = await fetch(`${BASE_URL}/login/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: email.trim().toLowerCase(), // Keep as 'username' if DRF default
+        password,
+      }),
+    });
 
-    if (data.token) {
-      await storeTokens({ accessToken: data.token, refreshToken: data.refreshToken });
+    const data = await response.json();
+
+    if (!response.ok) {
+      const message =
+        data.detail || data.non_field_errors?.[0] || 'Incorrect email or password';
+      return { success: false, message };
     }
 
-    if (data.user) {
-      await AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(data.user));
+    // Store tokens
+    if (data.access && data.refresh) {
+      await AsyncStorage.setItem(ACCESS_TOKEN_KEY, data.access);
+      await AsyncStorage.setItem(REFRESH_TOKEN_KEY, data.refresh);
     }
 
-    return { success: data.success, message: data.message, user: data.user };
+    return { success: true, data };
   } catch (error) {
-    console.error('❌ Login error:', error.response?.data || error.message);
-    const message =
-      error.response?.data?.detail ||
-      error.response?.data?.message ||
-      'Network or server error';
-    return { success: false, message };
+    console.error('API login error:', error);
+    return { success: false, message: 'Network or server error' };
   }
-}
+};
 
 // --------------------
 // Register
