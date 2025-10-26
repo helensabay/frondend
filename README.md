@@ -252,3 +252,4 @@ Backend
 ---
 
 If you need other providers (Azure AD, Facebook) or extra roles/permissions, we can extend the allauth adapter and RBAC model accordingly.
+"# frondend" 
