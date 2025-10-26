@@ -1,54 +1,25 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
-
-import { isMockMode, setMockMode, subscribeToApiEvents } from '../api/api';
+import React, { createContext, useContext, useMemo, useState } from 'react';
 
 const ApiContext = createContext({
-  useMocks: false,
-  setUseMocks: () => {},
   lastError: null,
   setLastError: () => {},
   lastEvent: null,
+  setLastEvent: () => {},
 });
 
 export function ApiProvider({ children }) {
-  const [useMocks, setUseMocksState] = useState(isMockMode());
   const [lastError, setLastError] = useState(null);
   const [lastEvent, setLastEvent] = useState(null);
 
-  useEffect(() => {
-    const unsubscribe = subscribeToApiEvents((event) => {
-      setLastEvent(event);
-      if (event?.type === 'error') {
-        setLastError(event.error);
-      } else if (event?.type === 'success') {
-        setLastError((prev) => (prev ? null : prev));
-      }
-    });
-    return unsubscribe;
-  }, []);
-
-  const setUseMocks = useCallback((value) => {
-    const next = Boolean(value);
-    setUseMocksState(next);
-    setMockMode(next);
-  }, []);
-
+  // You can manually update errors/events in other parts of your app if needed.
   const value = useMemo(
     () => ({
-      useMocks,
-      setUseMocks,
       lastError,
       setLastError,
       lastEvent,
+      setLastEvent,
     }),
-    [useMocks, setUseMocks, lastError, lastEvent]
+    [lastError, lastEvent]
   );
 
   return <ApiContext.Provider value={value}>{children}</ApiContext.Provider>;

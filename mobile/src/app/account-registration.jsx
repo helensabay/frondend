@@ -20,7 +20,6 @@ import {
   Roboto_700Bold,
   Roboto_900Black,
 } from '@expo-google-fonts/roboto';
-
 import { registerAccount } from '../api/api';
 
 export default function AccountRegistrationScreen() {
@@ -40,10 +39,13 @@ export default function AccountRegistrationScreen() {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
+  // Handle form field changes
   const handleChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+    setErrors((prev) => ({ ...prev, [field]: '' }));
   };
 
+  // Client-side validation
   const validateForm = () => {
     const errs = {};
     if (!form.firstName.trim()) errs.firstName = 'First name is required';
@@ -57,6 +59,7 @@ export default function AccountRegistrationScreen() {
     return errs;
   };
 
+  // Handle registration API call
   const handleRegister = async () => {
     const errs = validateForm();
     setErrors(errs);
@@ -64,23 +67,39 @@ export default function AccountRegistrationScreen() {
     if (Object.keys(errs).length === 0) {
       setLoading(true);
 
-      const result = await registerAccount({
-        firstName: form.firstName,
-        lastName: form.lastName,
-        role: form.role,
-        email: form.email,
-        password: form.password,
-      });
+      try {
+        const result = await registerAccount({
+          first_name: form.firstName,
+          last_name: form.lastName,
+          email: form.email,
+          password: form.password,
+          confirm: form.confirm,
+          role: form.role, // sent to backend
+        });
 
-      setLoading(false);
+        if (result.success) {
+          Alert.alert('Success', 'Account created successfully!', [
+            { text: 'OK', onPress: () => router.push('/AccountCreatedScreen') },
+          ]);
 
-      if (result.success) {
-        console.log('✅ User registered:', result.data);
-        Alert.alert('Success', 'Account created successfully!', [
-          { text: 'OK', onPress: () => router.push('/AccountCreatedScreen') },
-        ]);
-      } else {
-        Alert.alert('Error', result.message || 'Registration failed');
+          setForm({
+            firstName: '',
+            lastName: '',
+            role: '',
+            email: '',
+            password: '',
+            confirm: '',
+          });
+        } else if (result.errors) {
+          setErrors(result.errors);
+        } else {
+          Alert.alert('Error', result.message);
+        }
+      } catch (error) {
+        console.error(error);
+        Alert.alert('Error', 'Network error. Please try again.');
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -122,9 +141,7 @@ export default function AccountRegistrationScreen() {
                 style={styles.input}
               />
             </View>
-            {errors.firstName && (
-              <Text style={styles.errorText}>{errors.firstName}</Text>
-            )}
+            {errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
 
             {/* Last Name */}
             <View style={styles.inputWrapper}>
@@ -136,17 +153,11 @@ export default function AccountRegistrationScreen() {
                 style={styles.input}
               />
             </View>
-            {errors.lastName && (
-              <Text style={styles.errorText}>{errors.lastName}</Text>
-            )}
+            {errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
 
             {/* Role Picker */}
             <View style={styles.inputWrapper}>
-              <MaterialCommunityIcons
-                name="account-badge-outline"
-                size={20}
-                color="#888"
-              />
+              <MaterialCommunityIcons name="account-badge-outline" size={20} color="#888" />
               <Picker
                 selectedValue={form.role}
                 onValueChange={(value) => handleChange('role', value)}
@@ -162,30 +173,21 @@ export default function AccountRegistrationScreen() {
 
             {/* Email */}
             <View style={styles.inputWrapper}>
-              <MaterialCommunityIcons
-                name="email-outline"
-                size={20}
-                color="#888"
-              />
+              <MaterialCommunityIcons name="email-outline" size={20} color="#888" />
               <TextInput
                 placeholder="Email"
                 keyboardType="email-address"
+                autoCapitalize="none"
                 value={form.email}
                 onChangeText={(text) => handleChange('email', text)}
                 style={styles.input}
               />
             </View>
-            {errors.email && (
-              <Text style={styles.errorText}>{errors.email}</Text>
-            )}
+            {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
 
             {/* Password */}
             <View style={styles.inputWrapper}>
-              <MaterialCommunityIcons
-                name="lock-outline"
-                size={20}
-                color="#888"
-              />
+              <MaterialCommunityIcons name="lock-outline" size={20} color="#888" />
               <TextInput
                 placeholder="Password"
                 secureTextEntry={!passwordVisible}
@@ -193,27 +195,15 @@ export default function AccountRegistrationScreen() {
                 onChangeText={(text) => handleChange('password', text)}
                 style={[styles.input, { flex: 1 }]}
               />
-              <TouchableOpacity
-                onPress={() => setPasswordVisible(!passwordVisible)}
-              >
-                <Ionicons
-                  name={passwordVisible ? 'eye' : 'eye-off'}
-                  size={20}
-                  color="#888"
-                />
+              <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)}>
+                <Ionicons name={passwordVisible ? 'eye' : 'eye-off'} size={20} color="#888" />
               </TouchableOpacity>
             </View>
-            {errors.password && (
-              <Text style={styles.errorText}>{errors.password}</Text>
-            )}
+            {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
 
             {/* Confirm Password */}
             <View style={styles.inputWrapper}>
-              <MaterialCommunityIcons
-                name="lock-check-outline"
-                size={20}
-                color="#888"
-              />
+              <MaterialCommunityIcons name="lock-check-outline" size={20} color="#888" />
               <TextInput
                 placeholder="Confirm Password"
                 secureTextEntry={!confirmVisible}
@@ -221,29 +211,15 @@ export default function AccountRegistrationScreen() {
                 onChangeText={(text) => handleChange('confirm', text)}
                 style={[styles.input, { flex: 1 }]}
               />
-              <TouchableOpacity
-                onPress={() => setConfirmVisible(!confirmVisible)}
-              >
-                <Ionicons
-                  name={confirmVisible ? 'eye' : 'eye-off'}
-                  size={20}
-                  color="#888"
-                />
+              <TouchableOpacity onPress={() => setConfirmVisible(!confirmVisible)}>
+                <Ionicons name={confirmVisible ? 'eye' : 'eye-off'} size={20} color="#888" />
               </TouchableOpacity>
             </View>
-            {errors.confirm && (
-              <Text style={styles.errorText}>{errors.confirm}</Text>
-            )}
+            {errors.confirm && <Text style={styles.errorText}>{errors.confirm}</Text>}
 
             {/* Register Button */}
-            <TouchableOpacity
-              style={styles.button}
-              onPress={handleRegister}
-              disabled={loading}
-            >
-              <Text style={styles.buttonText}>
-                {loading ? 'Registering...' : 'Register'}
-              </Text>
+            <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
+              <Text style={styles.buttonText}>{loading ? 'Registering...' : 'Register'}</Text>
             </TouchableOpacity>
 
             {/* Divider */}
@@ -258,10 +234,7 @@ export default function AccountRegistrationScreen() {
               style={styles.googleButton}
               onPress={() => alert('Google sign up not implemented')}
             >
-              <Image
-                source={require('../../assets/google.png')}
-                style={styles.googleIcon}
-              />
+              <Image source={require('../../assets/google.png')} style={styles.googleIcon} />
               <Text style={styles.googleText}>Sign up with Google</Text>
             </TouchableOpacity>
 
@@ -279,90 +252,24 @@ export default function AccountRegistrationScreen() {
   );
 }
 
-// ✅ same styles as before
 const styles = StyleSheet.create({
   background: { flex: 1 },
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 25,
-    paddingVertical: 40,
-  },
+  scrollContainer: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 25, paddingVertical: 40 },
   container: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-  title: {
-    fontSize: 28,
-    fontFamily: 'Roboto_900Black',
-    color: '#333',
-    marginBottom: 6,
-  },
-  subtitle: {
-    fontSize: 16,
-    fontFamily: 'Roboto_400Regular',
-    color: '#555',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  card: {
-    width: '100%',
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: 20,
-    padding: 25,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 5 },
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    marginBottom: 10,
-    backgroundColor: '#F5F5F5',
-  },
-  input: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 5,
-    fontSize: 16,
-    color: '#333',
-    fontFamily: 'Roboto_400Regular',
-  },
+  title: { fontSize: 28, fontFamily: 'Roboto_900Black', color: '#333', marginBottom: 6 },
+  subtitle: { fontSize: 16, fontFamily: 'Roboto_400Regular', color: '#555', marginBottom: 20, textAlign: 'center' },
+  card: { width: '100%', backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 20, padding: 25, shadowColor: '#000', shadowOpacity: 0.05, shadowOffset: { width: 0, height: 5 }, shadowRadius: 10, elevation: 3 },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, paddingHorizontal: 10, marginBottom: 10, backgroundColor: '#F5F5F5' },
+  input: { flex: 1, paddingVertical: 12, paddingHorizontal: 5, fontSize: 16, color: '#333', fontFamily: 'Roboto_400Regular' },
   errorText: { color: 'red', marginBottom: 5, marginLeft: 5 },
-  button: {
-    backgroundColor: '#FF8C00',
-    paddingVertical: 14,
-    borderRadius: 12,
-    marginTop: 10,
-    alignItems: 'center',
-  },
+  button: { backgroundColor: '#FF8C00', paddingVertical: 14, borderRadius: 12, marginTop: 10, alignItems: 'center' },
   buttonText: { color: '#fff', fontFamily: 'Roboto_700Bold', fontSize: 16 },
   divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 15 },
   line: { flex: 1, height: 1, backgroundColor: '#ccc' },
   orText: { marginHorizontal: 10, color: '#888' },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
+  googleButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', paddingVertical: 12, borderRadius: 12 },
   googleIcon: { width: 22, height: 22, marginRight: 10 },
-  googleText: {
-    fontSize: 16,
-    fontFamily: 'Roboto_700Bold',
-    color: '#333',
-  },
-  loginRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 20,
-  },
+  googleText: { fontSize: 16, fontFamily: 'Roboto_700Bold', color: '#333' },
+  loginRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 20 },
   loginText: { color: '#FF8C00', fontFamily: 'Roboto_700Bold' },
 });

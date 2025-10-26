@@ -1,32 +1,36 @@
 {
   "expo": {
-    "scheme": "mobilecapstone",
     "name": "MOBILE_CAPSTONE",
-    "slug": "MOBILE_CAPSTONE",
+    "slug": "mobile_capstone",
     "version": "1.0.0",
-    "orientation": "portrait",
+
+    "scheme": "mobilecapstone",
+
+    "platforms": ["ios", "android"],
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "splash": {
       "image": "./assets/logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+
     "ios": {
       "supportsTablet": true
     },
+
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.MOBILE_CAPSTONE"
+      }
     },
-    "web": {
-      "favicon": "./assets/logo.png"
-    },
-    "plugins": ["expo-router", "expo-font", "expo-web-browser"]
+
+    "plugins": ["expo-router"],
+
+    "extra": {
+      "apiUrl": "http://192.168.1.6:8000",
+      "apiPrefix": "/api/v1"
+    }
   }
 }
