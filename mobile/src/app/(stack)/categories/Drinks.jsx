@@ -1,5 +1,5 @@
-// Drinks.jsx
-import React from 'react';
+// ComboMeals.jsx
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Dimensions,
   ImageBackground,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -18,38 +19,61 @@ import {
   Roboto_700Bold,
 } from '@expo-google-fonts/roboto';
 import { useCart } from '../../../context/CartContext';
+import { fetchMenuItems } from '../../../api/api';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 40) / 2;
 
-const drinks = [
-  { id: 'd1', name: 'Water 350ml', price: 10 },
-  { id: 'd2', name: 'Water 500ml', price: 15 },
-  { id: 'd3', name: 'Water 1L', price: 25 },
-  { id: 'd4', name: 'Royal', price: 20 },
-  { id: 'd5', name: 'Coke', price: 20 },
-  { id: 'd6', name: 'Sprite', price: 20 },
-  { id: 'd7', name: 'C2', price: 18 },
-  { id: 'd8', name: 'Yakult', price: 15 },
-];
-
-export default function DrinksScreen() {
+export default function ComboMeals() {
   const router = useRouter();
   const { cart, addToCart, decreaseQuantity } = useCart();
+  const [menuItems, setMenuItems] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  let [fontsLoaded] = useFonts({
+  const [fontsLoaded] = useFonts({
     Roboto_400Regular,
     Roboto_700Bold,
   });
 
-  if (!fontsLoaded) return null;
+  useEffect(() => {
+    loadComboMeals();
+  }, []);
+
+  const loadComboMeals = async () => {
+    try {
+      const items = await fetchMenuItems();
+      const filtered = items.filter(
+        (item) =>
+          item.category &&
+          item.category.toLowerCase().includes('drinks')
+      );
+      setMenuItems(filtered);
+    } catch (error) {
+      console.error('Error fetching Drinks:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!fontsLoaded || loading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#e67e22" />
+        <Text style={{ marginTop: 8, color: '#e67e22', fontFamily: 'Roboto_700Bold' }}>
+          Loading Combo Drinks...
+        </Text>
+      </View>
+    );
+  }
 
   const renderItem = ({ item }) => {
     const qty = cart.find((i) => i.id === item.id)?.quantity || 0;
 
     return (
       <View style={styles.card}>
-        <Image source={{ uri: item.image }} style={styles.image} />
+        {item.image && (
+          <Image source={{ uri: item.image }} style={styles.image} />
+        )}
         <Text style={styles.name}>{item.name}</Text>
         <Text style={styles.price}>₱{item.price}</Text>
 
@@ -98,39 +122,41 @@ export default function DrinksScreen() {
             <TouchableOpacity onPress={() => router.back()}>
               <Ionicons name="arrow-back" size={26} color="black" />
             </TouchableOpacity>
-
             <Text style={styles.headerTitle}>Drinks</Text>
-
-            <Ionicons name="wine-outline" size={26} color="black" />
+            <Ionicons name="fast-food-outline" size={26} color="black" />
           </View>
         </View>
       </ImageBackground>
 
-      {/* Drinks List */}
-      <FlatList
-        data={drinks}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        columnWrapperStyle={{ justifyContent: 'space-between' }}
-        contentContainerStyle={{
-          padding: 12,
-          paddingBottom: total > 0 ? 130 : 50, // space for buttons
-        }}
-      />
+      {/* Combo snack List */}
+      {menuItems.length > 0 ? (
+        <FlatList
+          data={menuItems}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id.toString()}
+          numColumns={2}
+          columnWrapperStyle={{ justifyContent: 'space-between' }}
+          contentContainerStyle={{
+            padding: 12,
+            paddingBottom: total > 0 ? 130 : 50,
+          }}
+        />
+      ) : (
+        <View style={styles.centered}>
+          <Text style={{ fontFamily: 'Roboto_700Bold', color: '#555' }}>
+            No Combo Meals found.
+          </Text>
+        </View>
+      )}
 
+      {/* Floating Cart */}
       {total > 0 && (
         <View style={styles.floatingContainer}>
-          {/* Checkout Button */}
-          <TouchableOpacity
-            style={styles.floatingCart}
-            onPress={handleCheckout}
-          >
+          <TouchableOpacity style={styles.floatingCart} onPress={handleCheckout}>
             <Ionicons name="cart-outline" size={22} color="#fff" />
             <Text style={styles.cartText}>₱{total} • Checkout</Text>
           </TouchableOpacity>
 
-          {/* Add More Items Button */}
           <TouchableOpacity
             style={styles.addMoreBtn}
             onPress={handleAddMoreItems}
@@ -166,8 +192,10 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontFamily: 'Roboto_700Bold',
     color: '#1F2937',
+    textAlign: 'center',
+    flex: 1,
+    marginHorizontal: 10,
   },
-
   card: {
     backgroundColor: '#fff',
     width: CARD_WIDTH,
@@ -186,9 +214,9 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 16,
     fontFamily: 'Roboto_700Bold',
-    textAlign: 'center',
     color: '#333',
     marginBottom: 4,
+    textAlign: 'center',
   },
   price: {
     fontSize: 14,
@@ -196,7 +224,6 @@ const styles = StyleSheet.create({
     color: '#777',
     marginBottom: 8,
   },
-
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -216,7 +243,6 @@ const styles = StyleSheet.create({
     minWidth: 20,
     textAlign: 'center',
   },
-
   floatingContainer: {
     position: 'absolute',
     bottom: 20,
@@ -239,7 +265,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 16,
   },
-
   addMoreBtn: {
     backgroundColor: '#27ae60',
     paddingVertical: 12,
@@ -252,5 +277,10 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontFamily: 'Roboto_700Bold',
     fontSize: 16,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

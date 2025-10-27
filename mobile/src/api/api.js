@@ -161,5 +161,36 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+export const addItemToCart = async (itemId, quantity = 1) => {
+  try {
+    // If your backend uses authentication
+    const token = await AsyncStorage.getItem('@sanaol/auth/accessToken');
+    const response = await axios.post(
+      `${BASE_URL}/cart/`,
+      { itemId, quantity },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    return response.data;
+  } catch (err) {
+    console.error('Error adding item to cart:', err);
+    throw err;
+  }
+};
+
+
+export const updateCartItem = async (itemId, quantity) => {
+  const response = await api.put(`/cart/update/${itemId}/`, { quantity });
+  return response.data;
+};
+
+export const removeCartItem = async (itemId) => {
+  const response = await api.delete(`/cart/remove/${itemId}/`);
+  return response.data;
+};
 
 export default api;

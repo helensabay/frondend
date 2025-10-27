@@ -1,5 +1,5 @@
 // ComboMeals.jsx
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Dimensions,
   ImageBackground,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -18,65 +19,61 @@ import {
   Roboto_700Bold,
 } from '@expo-google-fonts/roboto';
 import { useCart } from '../../../context/CartContext';
+import { fetchMenuItems } from '../../../api/api';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 40) / 2;
 
-const comboMeals = [
-  {
-    id: 'c1',
-    name: 'Rice, Vegetable, Lumpia',
-    price: 45,
-    image: 'https://via.placeholder.com/100',
-  },
-  {
-    id: 'c2',
-    name: 'Rice, Humba Egg, Ham',
-    price: 45,
-    image: 'https://via.placeholder.com/100',
-  },
-  {
-    id: 'c3',
-    name: 'Rice, Bihon/ Bam-i, Siomai',
-    price: 45,
-    image: 'https://via.placeholder.com/100',
-  },
-  {
-    id: 'c4',
-    name: 'Rice, Chorizo, Boiled Egg',
-    price: 45,
-    image: 'https://via.placeholder.com/100',
-  },
-  {
-    id: 'c5',
-    name: 'Rice, Hotdog, Ngohiong',
-    price: 45,
-    image: 'https://via.placeholder.com/100',
-  },
-  {
-    id: 'c6',
-    name: 'Rice, Fried Egg, Chorizo',
-    price: 45,
-    image: 'https://via.placeholder.com/100',
-  },
-];
-
 export default function ComboMeals() {
   const router = useRouter();
   const { cart, addToCart, decreaseQuantity } = useCart();
+  const [menuItems, setMenuItems] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const [fontsLoaded] = useFonts({
     Roboto_400Regular,
     Roboto_700Bold,
   });
-  if (!fontsLoaded) return null;
+
+  useEffect(() => {
+    loadComboMeals();
+  }, []);
+
+  const loadComboMeals = async () => {
+    try {
+      const items = await fetchMenuItems();
+      const filtered = items.filter(
+        (item) =>
+          item.category &&
+          item.category.toLowerCase().includes('combo meals')
+      );
+      setMenuItems(filtered);
+    } catch (error) {
+      console.error('Error fetching combo meals:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!fontsLoaded || loading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#e67e22" />
+        <Text style={{ marginTop: 8, color: '#e67e22', fontFamily: 'Roboto_700Bold' }}>
+          Loading Combo Meals...
+        </Text>
+      </View>
+    );
+  }
 
   const renderItem = ({ item }) => {
     const qty = cart.find((i) => i.id === item.id)?.quantity || 0;
 
     return (
       <View style={styles.card}>
-        <Image source={{ uri: item.image }} style={styles.image} />
+        {item.image && (
+          <Image source={{ uri: item.image }} style={styles.image} />
+        )}
         <Text style={styles.name}>{item.name}</Text>
         <Text style={styles.price}>₱{item.price}</Text>
 
@@ -132,30 +129,34 @@ export default function ComboMeals() {
       </ImageBackground>
 
       {/* Combo Meals List */}
-      <FlatList
-        data={comboMeals}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        columnWrapperStyle={{ justifyContent: 'space-between' }}
-        contentContainerStyle={{
-          padding: 12,
-          paddingBottom: total > 0 ? 130 : 50,
-        }}
-      />
+      {menuItems.length > 0 ? (
+        <FlatList
+          data={menuItems}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id.toString()}
+          numColumns={2}
+          columnWrapperStyle={{ justifyContent: 'space-between' }}
+          contentContainerStyle={{
+            padding: 12,
+            paddingBottom: total > 0 ? 130 : 50,
+          }}
+        />
+      ) : (
+        <View style={styles.centered}>
+          <Text style={{ fontFamily: 'Roboto_700Bold', color: '#555' }}>
+            No Combo Meals found.
+          </Text>
+        </View>
+      )}
 
+      {/* Floating Cart */}
       {total > 0 && (
         <View style={styles.floatingContainer}>
-          {/* Checkout Button */}
-          <TouchableOpacity
-            style={styles.floatingCart}
-            onPress={handleCheckout}
-          >
+          <TouchableOpacity style={styles.floatingCart} onPress={handleCheckout}>
             <Ionicons name="cart-outline" size={22} color="#fff" />
             <Text style={styles.cartText}>₱{total} • Checkout</Text>
           </TouchableOpacity>
 
-          {/* Add More Items Button */}
           <TouchableOpacity
             style={styles.addMoreBtn}
             onPress={handleAddMoreItems}
@@ -195,7 +196,6 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 10,
   },
-
   card: {
     backgroundColor: '#fff',
     width: CARD_WIDTH,
@@ -224,7 +224,6 @@ const styles = StyleSheet.create({
     color: '#777',
     marginBottom: 8,
   },
-
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -244,7 +243,6 @@ const styles = StyleSheet.create({
     minWidth: 20,
     textAlign: 'center',
   },
-
   floatingContainer: {
     position: 'absolute',
     bottom: 20,
@@ -267,7 +265,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 16,
   },
-
   addMoreBtn: {
     backgroundColor: '#27ae60',
     paddingVertical: 12,
@@ -280,5 +277,10 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontFamily: 'Roboto_700Bold',
     fontSize: 16,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
