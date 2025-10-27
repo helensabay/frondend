@@ -1,13 +1,22 @@
 // api.js
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_CONFIG, BASE_URL } from './config';
+import { API_CONFIG } from './config';
 
+// --------------------
+// Constants
+// --------------------
 export const ACCESS_TOKEN_KEY = '@sanaol/auth/accessToken';
 export const REFRESH_TOKEN_KEY = '@sanaol/auth/refreshToken';
 export const USER_CACHE_KEY = '@sanaol/auth/user';
 
+// Separate base URLs
+export const BASE_URL = `http://192.168.1.6:8000/api/v1`; // main API
+export const BASE_URL_MENU = `http://192.168.1.6:8000/menu`; // menu endpoints
+
+// --------------------
 // Axios instances
+// --------------------
 const api = axios.create({
   baseURL: BASE_URL,
   timeout: API_CONFIG.timeout,
@@ -43,7 +52,7 @@ export const login = async ({ email, password }) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        username: email.trim().toLowerCase(), // Keep as 'username' if DRF default
+        username: email.trim().toLowerCase(),
         password,
       }),
     });
@@ -51,15 +60,13 @@ export const login = async ({ email, password }) => {
     const data = await response.json();
 
     if (!response.ok) {
-      const message =
-        data.detail || data.non_field_errors?.[0] || 'Incorrect email or password';
+      const message = data.detail || data.non_field_errors?.[0] || 'Incorrect email or password';
       return { success: false, message };
     }
 
     // Store tokens
     if (data.access && data.refresh) {
-      await AsyncStorage.setItem(ACCESS_TOKEN_KEY, data.access);
-      await AsyncStorage.setItem(REFRESH_TOKEN_KEY, data.refresh);
+      await storeTokens({ accessToken: data.access, refreshToken: data.refresh });
     }
 
     return { success: true, data };
@@ -70,25 +77,56 @@ export const login = async ({ email, password }) => {
 };
 
 // --------------------
+// Menu endpoints
+// --------------------
+export const fetchMenuItems = async (category = '') => {
+  try {
+    const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
+    const response = await axios.get(`${BASE_URL_MENU}/menu-items/`, {
+      params: { category },
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    console.log('Menu items response:', response.data);
+    return response.data || [];
+  } catch (error) {
+    console.error('fetchMenuItems error:', error.response?.data || error.message);
+    return [];
+  }
+};
+
+export async function fetchMenuItemsByCategory(category) {
+  try {
+    const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
+    const url = `${BASE_URL_MENU}/menu-items/?category=${category}`;
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('fetchMenuItemsByCategory error:', err);
+    return [];
+  }
+}
+
+// --------------------
 // Register
 // --------------------
 export const registerAccount = async (data) => {
   try {
-    const response = await fetch('http://192.168.1.6:8000/api/accounts/register/', {
+    const response = await fetch(`${BASE_URL}/accounts/register/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-
     const result = await response.json();
-
-    if (response.status === 201) {
-      return { success: true, message: result.message };
-    } else if (response.status === 400) {
-      return { success: false, errors: result.errors || {} };
-    } else {
-      return { success: false, message: result.message || 'Registration failed' };
-    }
+    if (response.status === 201) return { success: true, message: result.message };
+    if (response.status === 400) return { success: false, errors: result.errors || {} };
+    return { success: false, message: result.message || 'Registration failed' };
   } catch (error) {
     console.error(error);
     return { success: false, message: 'Network error' };
@@ -113,7 +151,9 @@ export async function getCurrentUser() {
   }
 }
 
+// --------------------
 // Global interceptor for logging
+// --------------------
 api.interceptors.response.use(
   (response) => response,
   (error) => {

@@ -1,171 +1,30 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
+import { fetchMenuCategories, fetchMenuItems, getCurrentUser } from './api';
 
-import {
-  createPayment,
-  fetchInventory,
-  fetchOrders,
-  fetchPayments,
-  fetchMenuCategories,
-  fetchMenuItems,
-  getCurrentUser,
-  refundPayment,
-  updateInventoryItem,
-  updateOrderStatus,
-  updateProfile,
-  uploadProfileAvatar,
-} from './api';
-import { useApiConfig } from '../context/ApiContext';
+function useApiQuery(queryKey, queryFn, options = {}) {
+  return useQuery({
+    queryKey,
+    queryFn: async () => await queryFn(),
+    ...options,
+  });
+}
 
 export const queryKeys = {
   me: ['auth', 'me'],
   menu: {
     categories: ['menu', 'categories'],
-    items: (params) => ['menu', 'items', params],
-  },
-  inventory: {
-    all: ['inventory'],
-    list: (params) => ['inventory', 'list', params],
-  },
-  orders: {
-    all: ['orders'],
-    list: (params) => ['orders', 'list', params],
-  },
-  payments: {
-    all: ['payments'],
-    list: (params) => ['payments', 'list', params],
+    items: (params) => ['menu', 'items', JSON.stringify(params)],
   },
 };
 
-function useApiQuery(queryKey, queryFn, options = {}) {
-  const { setLastError } = useApiConfig() ?? {};
-  return useQuery({
-    queryKey,
-    queryFn: async () => {
-      try {
-        return await queryFn();
-      } catch (error) {
-        setLastError?.(error);
-        throw error;
-      }
-    },
-    ...options,
-  });
-}
-
-function useApiMutation(mutationFn, options = {}) {
-  const { setLastError } = useApiConfig() ?? {};
-  return useMutation({
-    mutationFn: async (variables) => {
-      try {
-        return await mutationFn(variables);
-      } catch (error) {
-        setLastError?.(error);
-        throw error;
-      }
-    },
-    ...options,
-  });
-}
-
-export function useCurrentUser(options = {}) {
-  return useApiQuery(queryKeys.me, () => getCurrentUser(), options);
-}
-
-export function useUpdateProfile() {
-  const queryClient = useQueryClient();
-  return useApiMutation(updateProfile, {
-    onSuccess: (user) => {
-      queryClient.setQueryData(queryKeys.me, user);
-    },
-  });
-}
-
-export function useUploadAvatar() {
-  const queryClient = useQueryClient();
-  return useApiMutation(uploadProfileAvatar, {
-    onSuccess: (user) => {
-      queryClient.setQueryData(queryKeys.me, user);
-    },
-  });
-}
-
 export function useMenuCategories(options = {}) {
-  return useApiQuery(queryKeys.menu.categories, () => fetchMenuCategories(), {
-    staleTime: 15 * 1000,
-    refetchInterval: 30 * 1000,
-    refetchIntervalInBackground: true,
-    refetchOnReconnect: true,
-    refetchOnWindowFocus: true,
-    refetchOnMount: 'always',
-    ...options,
-  });
+  return useApiQuery(queryKeys.menu.categories, fetchMenuCategories, { staleTime: 15000, ...options });
 }
 
 export function useMenuItems(params = {}, options = {}) {
-  const queryParams = params || {};
-  return useApiQuery(
-    queryKeys.menu.items(queryParams),
-    () => fetchMenuItems(queryParams),
-    {
-      staleTime: 15 * 1000,
-      refetchInterval: 30 * 1000,
-      refetchIntervalInBackground: true,
-      refetchOnReconnect: true,
-      refetchOnWindowFocus: true,
-      refetchOnMount: 'always',
-      ...options,
-    }
-  );
+  return useApiQuery(queryKeys.menu.items(params), () => fetchMenuItems(params), options);
 }
 
-export function useInventoryItems(params) {
-  return useApiQuery(queryKeys.inventory.list(params), () =>
-    fetchInventory(params || {})
-  );
-}
-
-export function useUpdateInventoryItem() {
-  const queryClient = useQueryClient();
-  return useApiMutation(({ id, payload }) => updateInventoryItem(id, payload), {
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
-    },
-  });
-}
-
-export function useOrders(params) {
-  return useApiQuery(queryKeys.orders.list(params), () => fetchOrders(params));
-}
-
-export function useUpdateOrderStatus() {
-  const queryClient = useQueryClient();
-  return useApiMutation(({ id, payload }) => updateOrderStatus(id, payload), {
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
-    },
-  });
-}
-
-export function usePayments(params) {
-  return useApiQuery(queryKeys.payments.list(params), () =>
-    fetchPayments(params)
-  );
-}
-
-export function useCreatePayment() {
-  const queryClient = useQueryClient();
-  return useApiMutation(createPayment, {
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.payments.all });
-    },
-  });
-}
-
-export function useRefundPayment() {
-  const queryClient = useQueryClient();
-  return useApiMutation(refundPayment, {
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.payments.all });
-    },
-  });
+export function useCurrentUser(options = {}) {
+  return useApiQuery(queryKeys.me, getCurrentUser, options);
 }

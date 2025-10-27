@@ -41,14 +41,13 @@ export default function AccountLoginScreen() {
   const [guestLoading, setGuestLoading] = useState(false);
   const [user, setUser] = useState(null);
 
-  // ---------- HELPER ----------
   const formatMessage = (msg) => {
-    if (Array.isArray(msg)) return msg.join('\n'); // array -> string
-    if (typeof msg === 'object' && msg !== null) return JSON.stringify(msg); // object -> string
-    return String(msg); // anything else -> string
+    if (Array.isArray(msg)) return msg.join('\n');
+    if (typeof msg === 'object' && msg !== null) return JSON.stringify(msg);
+    return String(msg);
   };
 
-  // ---------- GOOGLE CONFIG ----------
+  // Google Auth Config
   const googleConfig = {
     expoClientId: process.env.EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID,
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
@@ -62,19 +61,19 @@ export default function AccountLoginScreen() {
   const [request, , promptAsync] = Google.useAuthRequest(googleConfig);
   const validateEmail = useCallback((value) => /\S+@\S+\.\S+/.test(value), []);
 
-  // ---------- AUTO REDIRECT IF LOGGED IN ----------
+  // Auto redirect if already logged in
   useEffect(() => {
     const checkUser = async () => {
       const storedUser = await AsyncStorage.getItem('user');
       if (storedUser) {
         setUser(JSON.parse(storedUser));
-        router.replace('/(tabs)');
+        router.replace('/home-dashboard');
       }
     };
     checkUser();
   }, []);
 
-  // ---------- LOGIN FUNCTION ----------
+  // Login API
   const login = async ({ email, password }) => {
     try {
       const response = await fetch(`${API_BASE}/login/`, {
@@ -93,7 +92,7 @@ export default function AccountLoginScreen() {
     }
   };
 
-  // ---------- EMAIL/PASSWORD LOGIN ----------
+  // Email/password login
   const handleLogin = async () => {
     if (loading) return;
 
@@ -110,18 +109,18 @@ export default function AccountLoginScreen() {
         return Alert.alert('Login Failed', formatMessage(message || 'Incorrect email or password'));
       }
 
-      // Fetch profile
       const profileRes = await fetch(`${API_BASE}/profile/`, {
         headers: { Authorization: `Bearer ${data.access}` },
       });
       const profile = await profileRes.json();
+
       await AsyncStorage.setItem('user', JSON.stringify(profile));
       await AsyncStorage.setItem('accessToken', data.access);
       await AsyncStorage.setItem('refreshToken', data.refresh);
       setUser(profile);
 
       Alert.alert('Success', 'Login successful!', [
-        { text: 'Continue', onPress: () => router.replace('/(tabs)') },
+        { text: 'Continue', onPress: () => router.replace('/home-dashboard') },
       ]);
     } catch (error) {
       console.error('Login error:', error);
@@ -131,7 +130,7 @@ export default function AccountLoginScreen() {
     }
   };
 
-  // ---------- GOOGLE LOGIN ----------
+  // Google login
   const handleGoogleSignIn = useCallback(async () => {
     if (!request) {
       Alert.alert('Unavailable', 'Google Sign-In not configured for this build.');
@@ -165,7 +164,7 @@ export default function AccountLoginScreen() {
         setUser(profile);
 
         Alert.alert('Success', 'Login successful!', [
-          { text: 'Continue', onPress: () => router.replace('/(tabs)') },
+          { text: 'Continue', onPress: () => router.replace('/home-dashboard') },
         ]);
       } else {
         Alert.alert('Google Login Failed', formatMessage(loginData.detail || 'Unable to authenticate with Google.'));
@@ -178,7 +177,7 @@ export default function AccountLoginScreen() {
     }
   }, [promptAsync, request, router]);
 
-  // ---------- GUEST LOGIN ----------
+  // Guest login
   const handleGuestEntry = useCallback(async () => {
     if (guestLoading) return;
     setGuestLoading(true);
@@ -187,7 +186,7 @@ export default function AccountLoginScreen() {
       const data = await response.json();
       if (response.ok && data.success) {
         Alert.alert('Guest Access', 'You are browsing as a guest user.', [
-          { text: 'Continue', onPress: () => router.replace('/(tabs)') },
+          { text: 'Continue', onPress: () => router.replace('/home-dashboard') },
         ]);
       } else {
         Alert.alert('Unavailable', formatMessage(data.message || 'Unable to continue without an account.'));
@@ -200,7 +199,7 @@ export default function AccountLoginScreen() {
     }
   }, [router, guestLoading]);
 
-  // ---------- LOAD FONTS ----------
+  // Load fonts
   const [fontsLoaded] = useFonts({
     Roboto_400Regular,
     Roboto_700Bold,
@@ -309,3 +308,4 @@ const styles = StyleSheet.create({
   linkText: { color: '#FF8C00', marginTop: 5, fontSize: 15, textAlign: 'center' },
   errorText: { color: 'red', alignSelf: 'flex-start', marginBottom: 10, marginLeft: 5, fontSize: 13 },
 });
+

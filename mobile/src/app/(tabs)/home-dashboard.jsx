@@ -1,39 +1,38 @@
-// app/(tabs)/home-dashboard.jsx
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
   Pressable,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { useFonts, Roboto_700Bold } from '@expo-google-fonts/roboto';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   LogOut,
   User,
   Settings as Gear,
   HelpCircle,
   MessageCircle,
+  Bell,
 } from 'lucide-react-native';
 
-import Header from '../../components/Header';
 import CategoryItem from '../../components/CategoryItem';
 import Recommended from '../../components/Recommended';
 import { useNotifications } from '../../context/NotificationContext';
-import { useMenuCategories, useMenuItems } from '../../api/hooks';
+import { useMenuItems } from '../../api/hooks';
 
 const CATEGORY_IMAGES = {
-  combomeals: require('../../../assets/choices/combo.png'),
+  combo: require('../../../assets/choices/combo.png'),
   meals: require('../../../assets/choices/meals.png'),
   snacks: require('../../../assets/choices/snacks.png'),
   drinks: require('../../../assets/choices/drinks.png'),
 };
-
-const FALLBACK_CATEGORY_IMAGE = require('../../../assets/choices/meals.png');
 
 export default function HomeDashboardScreen() {
   const [fontsLoaded] = useFonts({ Roboto_700Bold });
@@ -42,302 +41,175 @@ export default function HomeDashboardScreen() {
 
   const [openDropdown, setOpenDropdown] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const {
-    data: categoriesRaw = [],
-    isLoading: categoriesLoading,
-    error: categoriesError,
-    isFetching: categoriesFetching,
-    refetch: refetchCategories,
-  } = useMenuCategories();
-
-  const {
-    data: menuData,
-    isLoading: itemsLoading,
-    error: itemsError,
-    isFetching: itemsFetching,
-    refetch: refetchItems,
-  } = useMenuItems({ limit: 100, archived: false }, { keepPreviousData: true });
+  const { data: menuData, isLoading: itemsLoading, isFetching: itemsFetching, refetch: refetchItems } =
+    useMenuItems({ limit: 100, archived: false }, { keepPreviousData: true });
 
   const menuItems = useMemo(() => menuData?.items || [], [menuData?.items]);
-  const isSyncing = categoriesFetching || itemsFetching;
+  const isSyncing = itemsFetching;
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    Promise.all([refetchCategories(), refetchItems()])
-      .catch(() => {})
-      .finally(() => setRefreshing(false));
-  }, [refetchCategories, refetchItems]);
+    refetchItems().finally(() => setRefreshing(false));
+  }, [refetchItems]);
 
   useFocusEffect(
     useCallback(() => {
-      Promise.all([refetchCategories(), refetchItems()]).catch(() => {});
-    }, [refetchCategories, refetchItems])
+      refetchItems().catch(() => {});
+    }, [refetchItems])
   );
 
+  const FIXED_CATEGORIES = [
+    { key: 'combo', title: 'Combo Meals', image: CATEGORY_IMAGES.combo },
+    { key: 'meals', title: 'Meals', image: CATEGORY_IMAGES.meals },
+    { key: 'snacks', title: 'Snacks', image: CATEGORY_IMAGES.snacks },
+    { key: 'drinks', title: 'Drinks', image: CATEGORY_IMAGES.drinks },
+  ];
+
+  // Map category keys to backend category names
+  const CATEGORY_MAP = {
+    combo: 'Combo Meals',
+    meals: 'Meals',
+    snacks: 'Snacks',
+    drinks: 'Drinks',
+  };
+
   const categoriesData = useMemo(() => {
-    if (categoriesRaw.length) {
-      return categoriesRaw.slice(0, 12).map((category, index) => {
-        const key = (category.name || '').toLowerCase();
-        const image =
-          CATEGORY_IMAGES[key] !== undefined
-            ? CATEGORY_IMAGES[key]
-            : FALLBACK_CATEGORY_IMAGE;
-        const itemCount =
-          typeof category.itemCount === 'number'
-            ? category.itemCount
-            : menuItems.filter(
-                (item) =>
-                  !item.archived && (item.category || '').toLowerCase() === key
-              ).length;
-        return {
-          id: category.id || `category-${index}`,
-          title: category.name || 'Category',
-          image,
-          raw: category,
-          itemCount,
-        };
-      });
-    }
-
-    if (!menuItems.length) {
-      return [];
-    }
-
-    const derived = new Map();
-    menuItems.forEach((item) => {
-      if (item.archived) return;
-      const name = (item.category || 'Menu').trim();
-      if (!name) return;
-      const key = name.toLowerCase();
-      if (!derived.has(key)) {
-        derived.set(key, {
-          id: `derived-${key}`,
-          title: name,
-          raw: { name },
-          itemCount: 0,
-        });
-      }
-      derived.get(key).itemCount += 1;
+    return FIXED_CATEGORIES.map((cat) => {
+      const itemCount = menuItems.filter(
+        (item) => !item.archived && (item.category || '') === CATEGORY_MAP[cat.key]
+      ).length;
+      return { ...cat, itemCount };
     });
+  }, [menuItems]);
 
-    return Array.from(derived.values())
-      .sort((a, b) => a.title.localeCompare(b.title))
-      .map((entry) => ({
-        ...entry,
-        image:
-          CATEGORY_IMAGES[entry.title.toLowerCase()] ?? FALLBACK_CATEGORY_IMAGE,
-      }));
-  }, [categoriesRaw, menuItems]);
+  const filteredCategories = useMemo(() => {
+    if (!searchQuery) return categoriesData;
+    return categoriesData.filter((cat) =>
+      cat.title.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [categoriesData, searchQuery]);
 
   const recommendedItems = useMemo(() => {
     if (!menuItems.length) return [];
-    return menuItems
-      .filter((item) => item && !item.archived && item.available)
-      .slice(0, 6);
+    return menuItems.filter((item) => item && !item.archived && item.available).slice(0, 6);
   }, [menuItems]);
 
-  const loadingCategories =
-    (categoriesLoading || itemsLoading) && !categoriesData.length;
-  const showEmptyState = !loadingCategories && categoriesData.length === 0;
+  const loadingCategories = itemsLoading && !categoriesData.length;
 
   if (!fontsLoaded) return null;
 
+  const handleLogout = async () => {
+    try {
+      await AsyncStorage.multiRemove([
+        '@sanaol/auth/accessToken',
+        '@sanaol/auth/refreshToken',
+        '@sanaol/auth/user',
+      ]);
+      setOpenDropdown(null);
+      router.replace('/account-login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      Alert.alert('Error', 'Failed to log out. Please try again.');
+    }
+  };
+
+  const DropdownItem = ({ icon, label, onPress, color }) => (
+    <TouchableOpacity
+      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4 }}
+      onPress={onPress}
+    >
+      <View style={{ width: 24, height: 24, alignItems: 'center', justifyContent: 'center' }}>
+        {icon}
+      </View>
+      <Text style={{ marginLeft: 8, fontSize: 14, color: color || '#374151' }}>{label}</Text>
+    </TouchableOpacity>
+  );
+
   const renderCategoriesHeader = () => (
-    <View className="mb-1.5 mt-3 px-2">
-      <Text className="font-heading text-xl text-neutral-900">Categories</Text>
-      <View
-        className="mt-1 w-12 rounded-full bg-primary-500"
-        style={{ height: 3 }} // NativeWind: exact 3px height requires inline style
-      />
+    <View style={{ marginBottom: 8, paddingHorizontal: 8 }}>
+      <Text style={{ fontSize: 20, fontWeight: '700', color: '#111827' }}>Categories</Text>
+      <View style={{ marginTop: 4, width: 48, height: 3, borderRadius: 2, backgroundColor: '#f97316' }} />
+    </View>
+  );
+
+  const renderDropdownContainer = (children) => (
+    <View style={{ position: 'absolute', top: 56, right: 16, width: 180, zIndex: 150 }}>
+      <View style={{ width: 0, height: 0, borderLeftWidth: 8, borderRightWidth: 8, borderBottomWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: 'white', alignSelf: 'flex-end', marginRight: 8 }} />
+      <View style={{ backgroundColor: 'white', borderRadius: 12, paddingVertical: 8, paddingHorizontal: 8, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 5 }}>
+        {children}
+      </View>
     </View>
   );
 
   return (
-    <View className="flex-1 bg-primary-100">
-      <Header onToggleDropdown={setOpenDropdown} />
-
-      <SafeAreaView className="flex-1">
-        <FlatList
-          data={categoriesData}
-          extraData={categoriesData.length}
-          key="two-columns"
-          numColumns={2}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              colors={['#f97316']}
-              tintColor="#f97316"
-            />
-          }
-          columnWrapperStyle={{
-            justifyContent: 'space-between',
-            marginBottom: 10,
-          }} // NativeWind: FlatList column wrapper still requires inline style
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <CategoryItem
-              image={item.image}
-              title={item.title}
-              onPress={() =>
-                router.push(
-                  `/categories/${encodeURIComponent(item.raw?.name || item.title)}`
-                )
-              }
-            />
-          )}
-          ListHeaderComponent={
-            <View className="mb-2">
-              <Recommended items={recommendedItems} />
-              {renderCategoriesHeader()}
-              {isSyncing && categoriesData.length > 0 ? (
-                <View className="mx-2 mt-2 flex-row items-center">
-                  <ActivityIndicator size="small" color="#f97316" />
-                  <Text className="ml-2 text-xs text-neutral-500">
-                    Syncing latest menu...
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          }
-          ListEmptyComponent={
-            loadingCategories ? (
-              <View className="items-center justify-center py-6">
-                <ActivityIndicator size="large" color="#f97316" />
-                <Text className="mt-2.5 px-4 text-center text-sm text-neutral-500">
-                  Loading categories...
-                </Text>
-              </View>
-            ) : showEmptyState ? (
-              <View className="items-center justify-center py-6">
-                <Text className="mt-2.5 px-4 text-center text-sm text-neutral-500">
-                  {itemsError || categoriesError
-                    ? 'Unable to load menu data right now. Please try again shortly.'
-                    : 'No categories available yet. Check back soon!'}
-                </Text>
-              </View>
-            ) : null
-          }
-          showsVerticalScrollIndicator={false}
-          contentContainerClassName="pb-4 px-2"
+    <View style={{ flex: 1, backgroundColor: '#fef3c7' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 8, zIndex: 200 }}>
+        <TextInput
+          placeholder="Search menu..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          style={{ flex: 1, height: 40, backgroundColor: 'white', borderRadius: 12, paddingHorizontal: 12, fontSize: 14, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 2 }}
         />
-      </SafeAreaView>
+        <TouchableOpacity onPress={() => setOpenDropdown(openDropdown === 'notifications' ? null : 'notifications')}>
+          <Bell size={20} color="#374151" />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setOpenDropdown(openDropdown === 'settings' ? null : 'settings')}>
+          <Gear size={20} color="#374151" />
+        </TouchableOpacity>
+      </View>
 
-      {openDropdown && (
-        <Pressable
-          className="absolute inset-0"
-          onPress={() => setOpenDropdown(null)}
-        />
-      )}
-
-      {/* Notification Dropdown */}
-      {openDropdown === 'notifications' && (
-        <View
-          className="absolute items-end"
-          style={{ top: 60, right: 50, zIndex: 100 }}
-        >
-          <View
-            style={{
-              width: 0,
-              height: 0,
-              borderLeftWidth: 8,
-              borderRightWidth: 8,
-              borderBottomWidth: 10,
-              borderLeftColor: 'transparent',
-              borderRightColor: 'transparent',
-              borderBottomColor: 'white',
-              marginBottom: 1,
-              marginRight: 10,
-            }} // NativeWind: triangle border shape requires inline style
+      <FlatList
+        data={filteredCategories}
+        extraData={filteredCategories.length}
+        numColumns={2}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={['#f97316']} tintColor="#f97316" />}
+        columnWrapperStyle={{ justifyContent: 'space-between', marginBottom: 10 }}
+        keyExtractor={(item) => item.key}
+        renderItem={({ item }) => (
+          <CategoryItem
+            image={item.image}
+            title={item.title}
+            onPress={() => router.push(`/categories/${encodeURIComponent(item.key)}`)}
           />
-          <View
-            className="w-44 rounded-lg bg-surface px-2.5 py-1.5 shadow-md"
-            style={{ elevation: 5 }} // NativeWind: Android elevation requires inline style
-          >
-            {notifications.length === 0 ? (
-              <Text className="py-2 italic text-neutral-500">
-                No notifications
-              </Text>
-            ) : (
-              notifications.map((item, index) => (
-                <Text key={index} className="py-2.5 text-sm text-neutral-700">
-                  {item.message}
-                </Text>
-              ))
+        )}
+        ListHeaderComponent={
+          <View style={{ marginBottom: 8 }}>
+            <Recommended items={recommendedItems} />
+            {renderCategoriesHeader()}
+            {isSyncing && categoriesData.length > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8, marginTop: 4 }}>
+                <ActivityIndicator size="small" color="#f97316" />
+                <Text style={{ marginLeft: 8, fontSize: 12, color: '#6b7280' }}>Syncing latest menu...</Text>
+              </View>
             )}
           </View>
-        </View>
-      )}
+        }
+        ListEmptyComponent={
+          loadingCategories ? (
+            <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 24 }}>
+              <ActivityIndicator size="large" color="#f97316" />
+              <Text style={{ marginTop: 8, textAlign: 'center', fontSize: 14, color: '#6b7280' }}>Loading categories...</Text>
+            </View>
+          ) : null
+        }
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 16, paddingHorizontal: 8 }}
+      />
 
-      {/* Settings Dropdown */}
-      {openDropdown === 'settings' && (
-        <View
-          className="absolute items-end"
-          style={{ top: 60, right: 8, zIndex: 100 }}
-        >
-          <View
-            style={{
-              width: 0,
-              height: 0,
-              borderLeftWidth: 8,
-              borderRightWidth: 8,
-              borderBottomWidth: 10,
-              borderLeftColor: 'transparent',
-              borderRightColor: 'transparent',
-              borderBottomColor: 'white',
-              marginBottom: 1,
-              marginRight: 10,
-            }} // NativeWind: triangle border shape requires inline style
-          />
-          <View
-            className="w-44 rounded-lg bg-surface px-2.5 py-1.5 shadow-md"
-            style={{ elevation: 5 }} // NativeWind: Android elevation requires inline style
-          >
-            <TouchableOpacity
-              className="flex-row items-center py-2.5"
-              onPress={() => router.push('/account-profile')}
-            >
-              <User size={16} color="#374151" />
-              <Text className="ml-2 text-sm text-neutral-700">Profile</Text>
-            </TouchableOpacity>
+      {openDropdown && <Pressable style={{ position: 'absolute', inset: 0 }} onPress={() => setOpenDropdown(null)} />}
 
-            <TouchableOpacity
-              className="flex-row items-center py-2.5"
-              onPress={() => router.push('screens/Settings')}
-            >
-              <Gear size={16} color="#374151" />
-              <Text className="ml-2 text-sm text-neutral-700">
-                App Settings
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-row items-center py-2.5"
-              onPress={() => router.push('screens/FAQs')}
-            >
-              <HelpCircle size={16} color="#374151" />
-              <Text className="ml-2 text-sm text-neutral-700">Help</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-row items-center py-2.5"
-              onPress={() => router.push('screens/Feedback')}
-            >
-              <MessageCircle size={16} color="#374151" />
-              <Text className="ml-2 text-sm text-neutral-700">Feedback</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-row items-center py-2.5"
-              onPress={() => router.push('/account-login')}
-            >
-              <LogOut size={16} color="red" />
-              <Text className="ml-2 text-sm text-red-500">Logout</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+      {openDropdown === 'settings' &&
+        renderDropdownContainer(
+          <>
+            <DropdownItem icon={<User size={16} color="#374151" />} label="Profile" onPress={() => router.push('/tabs/account-profile')} />
+            <DropdownItem icon={<Gear size={16} color="#374151" />} label="App Settings" onPress={() => router.push('screens/Settings')} />
+            <DropdownItem icon={<HelpCircle size={16} color="#374151" />} label="Help" onPress={() => router.push('screens/FAQs')} />
+            <DropdownItem icon={<MessageCircle size={16} color="#374151" />} label="Feedback" onPress={() => router.push('screens/Feedback')} />
+            <DropdownItem icon={<LogOut size={16} color="red" />} label="Logout" onPress={handleLogout} color="red" />
+          </>
+        )}
     </View>
   );
 }
