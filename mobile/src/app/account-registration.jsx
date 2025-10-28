@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,11 @@ import {
   Roboto_700Bold,
   Roboto_900Black,
 } from '@expo-google-fonts/roboto';
-import { registerAccount } from '../api/api';
+import { registerAccount, loginWithGoogle } from '../api/api'; // your backend API
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function AccountRegistrationScreen() {
   const router = useRouter();
@@ -39,13 +43,43 @@ export default function AccountRegistrationScreen() {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
-  // Handle form field changes
+  // Google Auth setup
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    expoClientId: 'YOUR_EXPO_CLIENT_ID',
+    iosClientId: 'YOUR_IOS_CLIENT_ID',
+    androidClientId: 'YOUR_ANDROID_CLIENT_ID',
+    webClientId: 'YOUR_WEB_CLIENT_ID',
+    scopes: ['profile', 'email'],
+  });
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { authentication } = response;
+      handleGoogleLogin(authentication.accessToken);
+    }
+  }, [response]);
+
+  const handleGoogleLogin = async (accessToken) => {
+    try {
+      const result = await loginWithGoogle({ accessToken }); // call your backend to register/login
+      if (result.success) {
+        Alert.alert('Success', 'Logged in with Google!', [
+          { text: 'OK', onPress: () => router.replace('/dashboard') },
+        ]);
+      } else {
+        Alert.alert('Error', result.message || 'Google login failed.');
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Unable to login with Google.');
+    }
+  };
+
   const handleChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: '' }));
   };
 
-  // Client-side validation
   const validateForm = () => {
     const errs = {};
     if (!form.firstName.trim()) errs.firstName = 'First name is required';
@@ -59,14 +93,11 @@ export default function AccountRegistrationScreen() {
     return errs;
   };
 
-  // Handle registration API call
   const handleRegister = async () => {
     const errs = validateForm();
     setErrors(errs);
-
     if (Object.keys(errs).length === 0) {
       setLoading(true);
-
       try {
         const result = await registerAccount({
           first_name: form.firstName,
@@ -74,22 +105,13 @@ export default function AccountRegistrationScreen() {
           email: form.email,
           password: form.password,
           confirm: form.confirm,
-          role: form.role, // sent to backend
+          role: form.role,
         });
-
         if (result.success) {
           Alert.alert('Success', 'Account created successfully!', [
             { text: 'OK', onPress: () => router.push('/AccountCreatedScreen') },
           ]);
-
-          setForm({
-            firstName: '',
-            lastName: '',
-            role: '',
-            email: '',
-            password: '',
-            confirm: '',
-          });
+          setForm({ firstName: '', lastName: '', role: '', email: '', password: '', confirm: '' });
         } else if (result.errors) {
           setErrors(result.errors);
         } else {
@@ -155,7 +177,7 @@ export default function AccountRegistrationScreen() {
             </View>
             {errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
 
-            {/* Role Picker */}
+            {/* Role */}
             <View style={styles.inputWrapper}>
               <MaterialCommunityIcons name="account-badge-outline" size={20} color="#888" />
               <Picker
@@ -222,17 +244,11 @@ export default function AccountRegistrationScreen() {
               <Text style={styles.buttonText}>{loading ? 'Registering...' : 'Register'}</Text>
             </TouchableOpacity>
 
-            {/* Divider */}
-            <View style={styles.divider}>
-              <View style={styles.line} />
-              <Text style={styles.orText}>Or</Text>
-              <View style={styles.line} />
-            </View>
-
             {/* Google Sign-Up */}
             <TouchableOpacity
               style={styles.googleButton}
-              onPress={() => alert('Google sign up not implemented')}
+              onPress={() => promptAsync()}
+              disabled={!request}
             >
               <Image source={require('../../assets/google.png')} style={styles.googleIcon} />
               <Text style={styles.googleText}>Sign up with Google</Text>
@@ -264,10 +280,7 @@ const styles = StyleSheet.create({
   errorText: { color: 'red', marginBottom: 5, marginLeft: 5 },
   button: { backgroundColor: '#FF8C00', paddingVertical: 14, borderRadius: 12, marginTop: 10, alignItems: 'center' },
   buttonText: { color: '#fff', fontFamily: 'Roboto_700Bold', fontSize: 16 },
-  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 15 },
-  line: { flex: 1, height: 1, backgroundColor: '#ccc' },
-  orText: { marginHorizontal: 10, color: '#888' },
-  googleButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', paddingVertical: 12, borderRadius: 12 },
+  googleButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', paddingVertical: 12, borderRadius: 12, marginTop: 10 },
   googleIcon: { width: 22, height: 22, marginRight: 10 },
   googleText: { fontSize: 16, fontFamily: 'Roboto_700Bold', color: '#333' },
   loginRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 20 },

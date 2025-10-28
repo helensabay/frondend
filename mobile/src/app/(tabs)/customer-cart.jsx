@@ -34,14 +34,9 @@ export default function CustomerCartScreen() {
 
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  const pickupTimes = [
-    '10:00 AM',
-    '11:00 AM',
-    '12:00 PM',
-    '1:00 PM',
-    '2:00 PM',
-  ];
+  const pickupTimes = ['10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM'];
 
+  // Proceed to show modal
   const handleProceed = () => {
     if (!selectedTime) {
       Alert.alert(
@@ -50,19 +45,25 @@ export default function CustomerCartScreen() {
       );
       return;
     }
+    if (cart.length === 0) {
+      Alert.alert('Cart is empty', 'Please add items to your cart.');
+      return;
+    }
     setShowModal(true);
   };
 
-  const handleTakeout = () => {
-    router.push(
-      `/cart/payment?orderType=takeout&total=${total}&selectedTime=${selectedTime}`
-    );
-  };
-
-  const handleDineIn = () => {
-    router.push(
-      `/cart/payment?orderType=dinein&total=${total}&selectedTime=${selectedTime}`
-    );
+  // Navigate to payment page with full order details
+  const goToPayment = (type) => {
+    router.push({
+      pathname: '/cart/payment',
+      params: {
+        orderType: type,
+        total: total,
+        selectedTime: selectedTime,
+        cartItems: JSON.stringify(cart), // pass entire cart as JSON
+      },
+    });
+    setShowModal(false);
   };
 
   const renderItem = ({ item }) => (
@@ -192,10 +193,7 @@ export default function CustomerCartScreen() {
             <View style={styles.circleChoiceContainer}>
               {/* Dine-in */}
               <TouchableOpacity
-                onPress={() => {
-                  setOrderType('dinein');
-                  handleDineIn();
-                }}
+                onPress={() => goToPayment('dinein')}
                 style={[
                   styles.circleBtn,
                   orderType === 'dinein' && styles.circleBtnSelected,
@@ -219,10 +217,7 @@ export default function CustomerCartScreen() {
 
               {/* Takeout */}
               <TouchableOpacity
-                onPress={() => {
-                  setOrderType('takeout');
-                  handleTakeout();
-                }}
+                onPress={() => goToPayment('takeout')}
                 style={[
                   styles.circleBtn,
                   orderType === 'takeout' && styles.circleBtnSelected,

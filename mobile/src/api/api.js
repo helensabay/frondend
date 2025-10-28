@@ -11,7 +11,8 @@ export const REFRESH_TOKEN_KEY = '@sanaol/auth/refreshToken';
 export const USER_CACHE_KEY = '@sanaol/auth/user';
 
 // Separate base URLs
-export const BASE_URL = `http://192.168.1.6:8000/api/v1`; // main API
+export const BASE_URLFEEDBACK = `http://192.168.1.6:8000`;
+export const BASE_URL = `http://192.168.1.6:8000/api`; // main API
 export const BASE_URL_MENU = `http://192.168.1.6:8000/menu`; // menu endpoints
 
 // --------------------
@@ -46,6 +47,15 @@ export async function clearStoredTokens() {
 // --------------------
 // Auth
 // --------------------
+export const sendFeedback = async ({ category, message }) => {
+  try {
+    const response = await axios.post(`${BASE_URLFEEDBACK}/api/feedback/`, { category, message });
+    return response.data;
+  } catch (error) {
+    console.error('Error sending feedback:', error.response || error.message);
+    throw error;
+  }
+};
 export const login = async ({ email, password }) => {
   try {
     const response = await fetch(`${BASE_URL}/login/`, {

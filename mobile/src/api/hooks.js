@@ -1,11 +1,24 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchMenuCategories, fetchMenuItems, getCurrentUser } from './api';
-
+import { useMutation } from '@tanstack/react-query';
+import { uploadAvatarApi } from './api';
 function useApiQuery(queryKey, queryFn, options = {}) {
   return useQuery({
     queryKey,
     queryFn: async () => await queryFn(),
     ...options,
+  });
+}export function useUploadAvatar() {
+  return useMutation(async (file) => {
+    const formData = new FormData();
+    formData.append('avatar', {
+      uri: file.uri,
+      name: file.name,
+      type: file.type,
+    });
+
+    const response = await uploadAvatarApi(formData);
+    return response.data;
   });
 }
 

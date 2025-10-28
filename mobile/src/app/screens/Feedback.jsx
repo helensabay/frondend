@@ -9,11 +9,13 @@ import {
   Platform,
   Alert,
   ScrollView,
+  ActivityIndicator,
   StyleSheet,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { sendFeedback } from '../../api/api';
 
 const MAX = 500;
 const MIN = 10;
@@ -39,21 +41,36 @@ const Chip = ({ label, active, onPress }) => (
 export default function ShareFeedbackScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+
   const [text, setText] = useState('');
   const [category, setCategory] = useState('Other');
+  const [loading, setLoading] = useState(false);
+
   const remaining = MAX - text.length;
   const isValid = text.trim().length >= MIN && text.length <= MAX;
 
-  const onSend = () => {
-    Alert.alert('Thanks!', 'Your feedback was sent. We appreciate it.');
-    router.back();
+  const onSend = async () => {
+    if (!isValid) return;
+
+    setLoading(true);
+    try {
+      await sendFeedback({ category, message: text.trim() });
+      Alert.alert('Thanks!', 'Your feedback was sent. We appreciate it.');
+      router.back();
+    } catch (err) {
+      console.error(err);
+      Alert.alert(
+        'Error',
+        'There was a problem sending your feedback. Please try again later.'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <View
-      style={{ flex: 1, backgroundColor: '#f8fafc', paddingTop: insets.top }}
-    >
-      {/* Header like FAQs */}
+    <View style={{ flex: 1, backgroundColor: '#f8fafc', paddingTop: insets.top }}>
+      {/* Header */}
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => router.back()}>
           <Feather name="chevron-left" size={28} color={ORANGE} />
@@ -66,20 +83,16 @@ export default function ShareFeedbackScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
-        <ScrollView
-          contentContainerStyle={{ padding: 10, paddingBottom: 40 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Intro card */}
+        <ScrollView contentContainerStyle={{ padding: 10, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+          {/* Intro Card */}
           <View style={[styles.card, styles.visibleCard]}>
             <Text style={styles.cardTitle}>We value your feedback</Text>
             <Text style={styles.grayText}>
-              Tell us what’s working well or what we can improve. Every message
-              is read carefully.
+              Tell us what’s working well or what we can improve. Every message is read carefully.
             </Text>
           </View>
 
-          {/* Category card */}
+          {/* Category Card */}
           <View style={[styles.card, styles.visibleCard]}>
             <Text style={styles.cardTitle}>Category</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
@@ -92,17 +105,12 @@ export default function ShareFeedbackScreen() {
                 'Payment / Checkout',
                 'Other',
               ].map((c) => (
-                <Chip
-                  key={c}
-                  label={c}
-                  active={category === c}
-                  onPress={() => setCategory(c)}
-                />
+                <Chip key={c} label={c} active={category === c} onPress={() => setCategory(c)} />
               ))}
             </View>
           </View>
 
-          {/* Feedback input card */}
+          {/* Feedback Input */}
           <View style={[styles.card, styles.visibleCard]}>
             <Text style={styles.cardTitle}>Your Feedback</Text>
             <TextInput
@@ -114,49 +122,33 @@ export default function ShareFeedbackScreen() {
               maxLength={MAX}
               textAlignVertical="top"
               style={styles.textInput}
+              editable={!loading}
             />
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                marginTop: 8,
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: text.trim().length < MIN ? '#EF4444' : '#6B7280',
-                }}
-              >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+              <Text style={{ fontSize: 12, color: text.trim().length < MIN ? '#EF4444' : '#6B7280' }}>
                 {text.trim().length < MIN
                   ? `At least ${MIN} characters (${MIN - text.trim().length} more)`
                   : 'Looks good'}
               </Text>
-              <Text style={{ fontSize: 12, color: '#6B7280' }}>
-                {remaining}
-              </Text>
+              <Text style={{ fontSize: 12, color: '#6B7280' }}>{remaining}</Text>
             </View>
           </View>
 
-          {/* Send button copied from FAQs */}
+          {/* Send Button */}
           <TouchableOpacity
-            style={[styles.btnOrange, { opacity: isValid ? 1 : 0.6 }]}
+            style={[styles.btnOrange, { opacity: isValid && !loading ? 1 : 0.6 }]}
             onPress={onSend}
-            disabled={!isValid}
+            disabled={!isValid || loading}
           >
-            <Text style={styles.btnText}>Send Feedback</Text>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.btnText}>Send Feedback</Text>
+            )}
           </TouchableOpacity>
 
-          <Text
-            style={{
-              marginTop: 12,
-              fontSize: 12,
-              color: '#6B7280',
-              textAlign: 'center',
-            }}
-          >
-            By sending, you agree that your feedback may be used to improve the
-            app experience.
+          <Text style={{ marginTop: 12, fontSize: 12, color: '#6B7280', textAlign: 'center' }}>
+            By sending, you agree that your feedback may be used to improve the app experience.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -190,12 +182,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#0f172a',
-    marginBottom: 8,
-  },
+  cardTitle: { fontSize: 16, fontWeight: '600', color: '#0f172a', marginBottom: 8 },
   grayText: { color: '#6b7280', fontSize: 14 },
   chip: {
     paddingHorizontal: 12,
