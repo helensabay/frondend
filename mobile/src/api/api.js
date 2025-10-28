@@ -1,4 +1,3 @@
-// api.js
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG } from './config';
@@ -56,6 +55,7 @@ export const sendFeedback = async ({ category, message }) => {
     throw error;
   }
 };
+
 export const login = async ({ email, password }) => {
   try {
     const response = await fetch(`${BASE_URL}/login/`, {
@@ -93,9 +93,10 @@ export const fetchMenuItems = async (category = '') => {
   try {
     const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
     const response = await axios.get(`${BASE_URL_MENU}/menu-items/`, {
-      params: { category },
+      params: category ? { category } : undefined,
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
+    // Log for debugging
     console.log('Menu items response:', response.data);
     return response.data || [];
   } catch (error) {
@@ -104,6 +105,7 @@ export const fetchMenuItems = async (category = '') => {
   }
 };
 
+// Optional: Fetch menu items by category
 export async function fetchMenuItemsByCategory(category) {
   try {
     const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
@@ -121,7 +123,36 @@ export async function fetchMenuItemsByCategory(category) {
     console.error('fetchMenuItemsByCategory error:', err);
     return [];
   }
-}
+};
+export const fetchNotifications = async () => {
+  try {
+    // Get the stored access token
+    const token = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
+
+    if (!token) {
+      console.warn('No access token found. User is not logged in.');
+      return []; // return empty array if user is not authenticated
+    }
+
+    // Send request with token
+    const response = await axios.get(`${BASE_URL}/notifications/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    return response.data || [];
+  } catch (error) {
+    console.error(
+      'fetchNotifications error:',
+      error.response?.data || error.message
+    );
+
+    if (error.response?.status === 401) {
+      console.warn('User token invalid or expired. Returning empty notifications.');
+    }
+
+    return [];
+  }
+};
 
 // --------------------
 // Register
@@ -162,18 +193,10 @@ export async function getCurrentUser() {
 }
 
 // --------------------
-// Global interceptor for logging
+// Cart
 // --------------------
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    console.error('🌐 API Error:', error.response?.data || error.message);
-    return Promise.reject(error);
-  }
-);
 export const addItemToCart = async (itemId, quantity = 1) => {
   try {
-    // If your backend uses authentication
     const token = await AsyncStorage.getItem('@sanaol/auth/accessToken');
     const response = await axios.post(
       `${BASE_URL}/cart/`,
@@ -192,7 +215,6 @@ export const addItemToCart = async (itemId, quantity = 1) => {
   }
 };
 
-
 export const updateCartItem = async (itemId, quantity) => {
   const response = await api.put(`/cart/update/${itemId}/`, { quantity });
   return response.data;
@@ -202,5 +224,40 @@ export const removeCartItem = async (itemId) => {
   const response = await api.delete(`/cart/remove/${itemId}/`);
   return response.data;
 };
+
+// --------------------
+// 🌟 Menu Notification Checker
+// --------------------
+export const checkNewMenuNotifications = async () => {
+  try {
+    const storedLastCount = await AsyncStorage.getItem('lastMenuCount');
+    const menuItems = await fetchMenuItems();
+    const newCount = menuItems.length;
+
+    if (storedLastCount && parseInt(storedLastCount) < newCount) {
+      sendLocalNotification('🆕 New Menu Item Added', 'Check out the latest addition to the menu!');
+    }
+
+    await AsyncStorage.setItem('lastMenuCount', newCount.toString());
+  } catch (error) {
+    console.error('❌ Notification check error:', error.message);
+  }
+};
+
+// Example of showing a local notification (replace later with expo-notifications)
+const sendLocalNotification = (title, body) => {
+  console.log(`🔔 Notification: ${title} - ${body}`);
+};
+
+// --------------------
+// Global interceptor for logging
+// --------------------
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error('🌐 API Error:', error.response?.data || error.message);
+    return Promise.reject(error);
+  }
+);
 
 export default api;

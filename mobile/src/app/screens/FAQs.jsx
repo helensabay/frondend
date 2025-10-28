@@ -14,6 +14,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as Linking from 'expo-linking'; // ✅ Added for Telegram link
+
+// ✅ Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const QAItem = ({ id, question, answer, expanded, onToggle }) => {
   return (
@@ -127,7 +133,7 @@ const DEFAULT_FAQS = [
   },
 ];
 
-export default function FAQsScreen({ navigation }) {
+export default function FAQsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [query, setQuery] = useState('');
@@ -196,10 +202,10 @@ export default function FAQsScreen({ navigation }) {
           ))
         )}
 
-        {/* Contact Support */}
+        {/* ✅ Contact Support (Telegram link) */}
         <TouchableOpacity
           style={styles.contactBtn}
-          onPress={() => navigation.navigate?.('Feedback')}
+          onPress={() => Linking.openURL('https://t.me/TechnoMartSupport')}
         >
           <Text style={styles.contactText}>Contact Support</Text>
         </TouchableOpacity>
